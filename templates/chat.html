@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+</head>
+<body>
+    <h1>Hi, {{ username }}, welcome to the {{ room }} chat room!</h1>
+    <div id="messages"></div>
+
+    <form action="" id="message_input_form">
+        <input type="text" name="" id="message_input" placeholder="Enter your message here">
+        <button type="submit">Send</button>
+    </form>
+</body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.0/socket.io.js" integrity="sha512-nYuHvSAhY5lFZ4ixSViOwsEKFvlxHMU2NHts1ILuJgOS6ptUmAGt/0i5czIgMOahKZ6JN84YFDA+mCdky7dD8A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+    const socket = io.connect("http://127.0.0.1:5000");
+
+    socket.on('connect', () => {
+        socket.emit('join_room', {
+            username: "{{ username }}",
+            room: "{{ room }}"
+        })
+
+        let message_input = document.getElementById('message_input');
+
+        document.getElementById('message_input_form').onsubmit = (e) => {
+            e.preventDefault();
+            let message = message_input.value.trim();
+            if(message.length) {
+                socket.emit('send_message', {
+                    username: '{{ username }}',
+                    room: '{{ room }}',
+                    message: message
+                })
+            }
+            message_input.value = '';
+            message_input.focus();
+        }
+    })
+
+    socket.on('receive_message', (data) => {
+        const newMsg = document.createElement('div');
+        newMsg.innerHTML = `<b>${data.username}</b> : ${data.message}.`;
+        document.getElementById('messages').appendChild(newMsg);
+    })
+
+    socket.on('join_room_announcement', (data) => {
+        const newMsg = document.createElement('div');
+        newMsg.innerHTML = `<b>${data.username}</b> has joined the room.`;
+        document.getElementById('messages').appendChild(newMsg);
+    })
+</script>
+</html>
