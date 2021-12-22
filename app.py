@@ -14,6 +14,7 @@ login_manager.init_app(app)
 
 
 @app.route('/')
+@login_required
 def home():
     rooms = []
     if current_user.is_authenticated:
