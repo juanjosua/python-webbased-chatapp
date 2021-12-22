@@ -1,9 +1,11 @@
+from datetime import datetime
+from bson.json_util import dumps
 from flask_login import LoginManager, login_manager, login_user, login_required, logout_user, current_user
 from flask import Flask, render_template, request, redirect, url_for
-from flask_socketio import SocketIO, join_room
+from flask_socketio import SocketIO, join_room, leave_room
 from pymongo.errors import DuplicateKeyError
 
-from db import add_room_members, get_room, get_room_members, get_rooms_for_user, get_user, is_room_admin, is_room_member, remove_room_members, save_room, save_user, update_room
+from db import add_room_members, get_messages, get_room, get_room_members, get_rooms_for_user, get_user, is_room_admin, is_room_member, remove_room_members, save_message, save_room, save_user, update_room
 
 app = Flask(__name__)
 app.secret_key = 'my secret key'
@@ -140,7 +142,20 @@ def view_room(room_id):
     room = get_room(room_id)
     if room and is_room_member(room_id, current_user.username):
         room_members = get_room_members(room_id)
-        return render_template('view_room.html', username=current_user.username, room=room, room_members=room_members)
+        messages = get_messages(room_id)
+        return render_template('view_room.html', username=current_user.username, room=room, room_members=room_members, messages=messages)
+    else:
+        return 'Room not found', 404
+
+
+@app.route('/rooms/<room_id>/messages/')
+@login_required
+def get_older_messages(room_id):
+    room = get_room(room_id)
+    if room and is_room_member(room_id, current_user.username):
+        page = int(request.args.get('page', 0))
+        messages = get_messages(room_id, page)
+        return dumps(messages)
     else:
         return 'Room not found', 404
 
@@ -150,6 +165,8 @@ def handle_send_message_event(data):
     app.logger.info('{} has sent the message to the {} room : {}'.format(
         data['username'], data['room'], data['message']))
 
+    data['created_at'] = datetime.now().strftime("%d %b, %H:%M")
+    save_message(data['room'], data['message'], data['username'])
     socketio.emit('receive_message', data, room=data['room'])
 
 
@@ -158,7 +175,15 @@ def handle_join_room_event(data):
     app.logger.info('{} has joined the room {}'.format(
         data['username'], data['room']))
     join_room(data['room'])
-    socketio.emit('join_room_announcement', data)
+    socketio.emit('join_room_announcement', data, room=data['room'])
+
+
+@socketio.on('leave_room')
+def handle_leave_room_event(data):
+    app.logger.info('{} has left the room {}'.format(
+        data['username'], data['room']))
+    leave_room(data['room'])
+    socketio.emit('join_room_announcement', data, room=data['room'])
 
 
 @login_manager.user_loader

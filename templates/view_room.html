@@ -8,7 +8,16 @@
   </head>
   <body>
     <h1>Welcome to chat room : {{ room.room_name }}</h1>
-    <div id="messages"></div>
+
+    <button id="load_older_messages_btn">Load Older Messages</button>
+    <div id="messages">
+      {% for message in messages %}
+      <div>
+        [{{ message.created_at }}] <b>{{ message.sender }}</b> : {{ message.text
+        }}
+      </div>
+      {% endfor %}
+    </div>
 
     <form action="" id="message_input_form">
       <input
@@ -58,6 +67,30 @@
       };
     });
 
+    let page = 0;
+    document.getElementById("load_older_messages_btn").onclick = (e) => {
+      page += 1;
+      fetch("/rooms/{{ room._id }}/messages?page=" + page, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }).then((response) => {
+        response.json().then((messages) => {
+          messages.reverse().forEach((message) => {
+            prepend_message(message.text, message.sender, message.created_at);
+          });
+        });
+      });
+    };
+
+    const prepend_message = (message, username, created_at) => {
+      const newMsg = document.createElement("div");
+      newMsg.innerHTML = `[${created_at}] <b>${username}</b> : ${message}`;
+      const messages_div = document.getElementById("messages");
+      messages_div.insertBefore(newMsg, messages_div.firstChild);
+    };
+
     window.onbeforeunload = () => {
       socket.emit("leave_room", {
         username: "{{ username }}",
@@ -67,13 +100,21 @@
 
     socket.on("receive_message", (data) => {
       const newMsg = document.createElement("div");
-      newMsg.innerHTML = `<b>${data.username}</b> : ${data.message}.`;
+      newMsg.innerHTML = `[${data.created_at}] <b>${data.username}</b> : ${data.message}`;
       document.getElementById("messages").appendChild(newMsg);
     });
 
     socket.on("join_room_announcement", (data) => {
+      if (data.username != "{{ username }}") {
+        const newMsg = document.createElement("div");
+        newMsg.innerHTML = `<b>${data.username}</b> has joined the room.`;
+        document.getElementById("messages").appendChild(newMsg);
+      }
+    });
+
+    socket.on("leave_room_announcement", (data) => {
       const newMsg = document.createElement("div");
-      newMsg.innerHTML = `<b>${data.username}</b> has joined the room.`;
+      newMsg.innerHTML = `<b>${data.username}</b> has left the room.`;
       document.getElementById("messages").appendChild(newMsg);
     });
   </script>
